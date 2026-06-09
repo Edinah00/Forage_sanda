@@ -29,7 +29,7 @@ CREATE TABLE District(
 );
 CREATE TABLE Region(
     id INT PRIMARY KEY AUTO_INCREMENT,
-    libelle VARCHAR(255),
+    libelle VARCHAR(255)
     
 );
 
@@ -78,16 +78,3 @@ CREATE TABLE DevisDetail (
     idDevis INT,
     CONSTRAINT fk_devis FOREIGN KEY (idDevis) REFERENCES Devis(id)
 );
-
-INSERT INTO Statut (libelle, sigle) VALUES 
-('Demande créée', 'C'),
-('Devis Étude créée', 'DEC'),
-('Devis Étude refusé', 'DER'),
-('Devis forage créé', 'DFC'),
-('Devis forage refusé', 'DFR');
-
-
-INSERT INTO TypeDevis (libelle) VALUES
-('Forage'),
-('Étude');
-
