@@ -1,0 +1,20 @@
+-crud demandes
+-creation de devis avec details,date
+
+-comment assossié typeDevis et Statut car lors de la création de devis on dois aussi ajouter dans demandeStatut
+
+-faire un formulaire de création de devis avec 
+-un champ demande ou on écrit la reference et une fois la reference saisie (onblur)
+les info concernant ce demande apparait (client,date,...) venant de json
+-une liste deroulante de type(forage ,etude)
+il y a aussi un formulaire de detail avec un bouton ajouter qui ajoute une ligne de champs de détail et 
+un bouton de suppression à coté des lignes ajoutés(en ajax)
+et à la fin un bouton qui valide le tout
+-apres validation les tables devis,devisdetail et demandeStatut devront etre ajouté en meme temps
+
+il devrait y avoir un class Util avec 2 maps qui relient idtype avec sigle statut et sigle statut avec son id
+ajouté une colonne sigle dans la table statut
+
+afficher via api avec php les alertes correspondants au demande(demande,alerte,duree)
+(somme des durees travaillé dans statutdemande entre les idées dans parametre est supérieur ou égale au durée dans parametre)
+d'abord faire un formulaire pour entrer la reference de la demande
