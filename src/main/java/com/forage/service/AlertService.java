@@ -2,162 +2,113 @@ package com.forage.service;
 
 import com.forage.dto.AlertDto;
 import com.forage.dto.AlertResponse;
-import com.forage.dto.DemandeDto;
 import com.forage.model.*;
 import com.forage.repository.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.util.HashMap;
-import java.util.Map;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 public class AlertService {
 
+    // Sigle de l'étape finale : "Devis Forage terminé"
+    private static final String SIGLE_ETAPE_FINALE = "DFT";
+
     private final StatutDemandeRepository statutDemandeRepository;
-    private final DemandeRepository demandeRepository;
-    private final ParametreRepository parametreRepository;
+    private final DemandeRepository       demandeRepository;
+    private final ParametreRepository     parametreRepository;
+    private final StatutRepository        statutRepository;
 
     @Autowired
-    public AlertService(StatutDemandeRepository statutDemandeRepository, DemandeRepository demandeRepository,
-            ParametreRepository parametreRepository) {
+    public AlertService(StatutDemandeRepository statutDemandeRepository,
+                        DemandeRepository       demandeRepository,
+                        ParametreRepository     parametreRepository,
+                        StatutRepository        statutRepository) {
         this.statutDemandeRepository = statutDemandeRepository;
-        this.demandeRepository = demandeRepository;
-        this.parametreRepository = parametreRepository;
+        this.demandeRepository       = demandeRepository;
+        this.parametreRepository     = parametreRepository;
+        this.statutRepository        = statutRepository;
     }
 
-    // public List<AlertResponse> getAlerts() {
-    //     List<Demande> demandes = demandeRepository.findAll();
-    //     List<Parametre> parametres = parametreRepository.findAll();
-    //     List<AlertResponse> alerts = new ArrayList<>();
-    //     List<AlertDto> alertDtos;
-    //     int dureeTravaille;
-    //     for (Demande demande : demandes) {
-    //         List<StatutDemande> statutDemandes = statutDemandeRepository.findByDemandeId(demande.getId());
-    //         alertDtos = new ArrayList<>();
-    //         for (Parametre parametre : parametres) {
-
-    //             dureeTravaille = 0;
-    //             for (int i = 0; i < statutDemandes.size(); i++) {
-    //                 StatutDemande statutDemande = statutDemandes.get(i);
-
-    //                 if (parametre.getStatut1().getId() == statutDemande.getStatut().getId()) {
-
-    //                     for (int j = i + 1; j < statutDemandes.size(); j++) {
-    //                         StatutDemande statutDemande2 = statutDemandes.get(j);
-
-    //                         if (parametre.getStatut2().getId() == statutDemande2.getStatut().getId()) {
-
-    //                             // if (statutDemande.getDureeTravaille() != 0) {
-    //                             dureeTravaille += statutDemande2.getDureeTravaille();
-    //                             // }
-
-    //                             // Optionnel : On peut casser la boucle j si on a trouvé le statut de fin
-    //                             break;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //             if (dureeTravaille > parametre.getDuree()) {
-
-    //                 AlertDto alert = new AlertDto(parametre, dureeTravaille);
-    //                 alertDtos.add(alert);
-    //             }
-    //         }
-    //         alerts.add(new AlertResponse(demande, alertDtos));
-    //     }
-    //     return alerts;
-    // }
     public List<AlertResponse> getAlerts() {
-    List<Demande> demandes = demandeRepository.findAll();
-    List<Parametre> parametres = parametreRepository.findAll();
-    List<AlertResponse> alerts = new ArrayList<>();
-    
-    for (Demande demande : demandes) {
-        List<StatutDemande> statutDemandes = statutDemandeRepository.findByDemandeId(demande.getId());
-        
-        // Utilisation d'une Map pour filtrer les doublons d'intervalles sur cette demande
-        // Clé : "ID_STATUT1->ID_STATUT2" | Valeur : L'objet AlertDto le plus critique
-        Map<String, AlertDto> mapAlertesUniques = new HashMap<>();
+        List<Demande>   demandes   = demandeRepository.findAll();
+        List<Parametre> parametres = parametreRepository.findAll();
 
-        for (Parametre parametre : parametres) {
-            int dureeTravaille = 0;
-            boolean intervalleTrouve = false;
+        // ID du statut "Devis Forage terminé" (on le résout une fois)
+        final int idEtapeFinale = statutRepository.findBySigle(SIGLE_ETAPE_FINALE)
+                .map(Statut::getId)
+                .orElse(-1);
 
-            for (int i = 0; i < statutDemandes.size(); i++) {
-                StatutDemande statutDemande = statutDemandes.get(i);
+        List<AlertResponse> result = new ArrayList<>();
 
-                if (parametre.getStatut1().getId() == statutDemande.getStatut().getId()) {
-                    for (int j = i + 1; j < statutDemandes.size(); j++) {
-                        StatutDemande statutDemande2 = statutDemandes.get(j);
+        for (Demande demande : demandes) {
+            List<StatutDemande> historique =
+                    statutDemandeRepository.findByDemandeId(demande.getId());
 
-                        if (parametre.getStatut2().getId() == statutDemande2.getStatut().getId()) {
-                            dureeTravaille += statutDemande2.getDureeTravaille();
-                            intervalleTrouve = true;
-                            break;
+            // ── 1. Alertes par intervalle ────────────────────────────
+            // Clé : "idS1->idS2" — on ne garde qu'une alerte par intervalle
+            Map<String, AlertDto> mapAlertes = new HashMap<>();
+
+            for (Parametre p : parametres) {
+                double dureeTravaille = 0;
+                boolean trouve = false;
+
+                for (int i = 0; i < historique.size(); i++) {
+                    if (p.getStatut1().getId() == historique.get(i).getStatut().getId()) {
+                        for (int j = i + 1; j < historique.size(); j++) {
+                            if (p.getStatut2().getId() == historique.get(j).getStatut().getId()) {
+                                dureeTravaille = historique.get(j).getDureeTravaille();
+                                trouve = true;
+                                break;
+                            }
                         }
                     }
+                    if (trouve) break;
                 }
-                if (intervalleTrouve) break; // Évite de cumuler si le statut apparaît en double
+
+                if (!trouve) continue;
+
+                // Logique d'intervalle : dureeMin <= dureeTravaille < dureeMax
+                if (dureeTravaille >= p.getDureeMin() && dureeTravaille < p.getDureeMax()) {
+                    String cle = p.getStatut1().getId() + "->" + p.getStatut2().getId();
+                    AlertDto nouvelle = new AlertDto(p, dureeTravaille);
+
+                    // Si plusieurs paramètres couvrent le même intervalle, on garde
+                    // celui dont dureeMin est le plus élevé (le plus précis / grave)
+                    mapAlertes.merge(cle, nouvelle,
+                            (existant, nv) -> nv.getDureeMin() > existant.getDureeMin() ? nv : existant);
+                }
             }
 
-            // Si le seuil du paramètre est dépassé
-            if (intervalleTrouve && dureeTravaille > parametre.getDuree()) {
-                String cléIntervalle = parametre.getStatut1().getId() + "->" + parametre.getStatut2().getId();
-                
-                AlertDto nouvelleAlerte = new AlertDto(parametre, dureeTravaille);
+            List<AlertDto> alertDtos = new ArrayList<>(mapAlertes.values());
 
-                // LOGIQUE CRITIQUE : Si l'intervalle a déjà été enregistré pour un autre seuil
-                if (mapAlertesUniques.containsKey(cléIntervalle)) {
-                    AlertDto alerteExistante = mapAlertesUniques.get(cléIntervalle);
-                    
-                    // On ne conserve que celle qui a le seuil le plus élevé (la couleur la plus grave)
-                    if (nouvelleAlerte.getDureeSeuil() > alerteExistante.getDureeSeuil()) {
-                        mapAlertesUniques.put(cléIntervalle, nouvelleAlerte);
+            // ── 2. Durée totale DC → DFT ─────────────────────────────
+            Double totalDuree = null;
+
+            if (idEtapeFinale != -1) {
+                // Cherche si "Devis Forage terminé" est dans l'historique
+                boolean aAtteintFinale = historique.stream()
+                        .anyMatch(sd -> sd.getStatut().getId() == idEtapeFinale);
+
+                if (aAtteintFinale) {
+                    // Somme de toutes les dureeTravaille jusqu'à l'étape finale (incluse)
+                    double somme = 0;
+                    for (StatutDemande sd : historique) {
+                        somme += sd.getDureeTravaille();
+                        if (sd.getStatut().getId() == idEtapeFinale) break;
                     }
-                } else {
-                    // Premier seuil dépassé trouvé pour cet intervalle
-                    mapAlertesUniques.put(cléIntervalle, nouvelleAlerte);
+                    totalDuree = somme;
                 }
             }
+
+            result.add(new AlertResponse(demande, alertDtos, totalDuree));
         }
 
-        // On transforme les valeurs filtrées de la Map en liste pour le DTO de réponse
-        List<AlertDto> alertDtos = new ArrayList<>(mapAlertesUniques.values());
-        alerts.add(new AlertResponse(demande, alertDtos));
+        return result;
     }
-    
-    return alerts;
-}
-
-    // public AlertResponse getAlertsByReference(String reference) {
-    // if (reference == null || reference.trim().isEmpty()) {
-    // return null;
-    // }
-
-    // String ref = reference.trim();
-    // Optional<Demande> demandeOpt = demandeRepository.findByReference(ref);
-    // if (demandeOpt.isEmpty()) {
-    // demandeOpt = demandeRepository.findByReferenceIgnoreCase(ref);
-    // }
-    // if (demandeOpt.isEmpty()) {
-    // demandeOpt = demandeRepository.findFirstByReferenceContainingIgnoreCase(ref);
-    // }
-
-    // if (demandeOpt.isEmpty()) {
-    // return null;
-    // }
-
-    // Demande demande = demandeOpt.get();
-    // List<AlertDto> alerts =
-    // alertRepository.findAlertsByDemandeId(demande.getId());
-
-    // return new AlertResponse(new DemandeDto(demande.getId(),
-    // demande.getReference()), alerts);
-    // }
 }

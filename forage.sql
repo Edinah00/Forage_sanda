@@ -70,6 +70,15 @@ CREATE TABLE Parametre (
     duree INT,
     alerte VARCHAR(30)
 );
+
+ALTER TABLE Parametre
+    ADD COLUMN dureeMin INT NOT NULL DEFAULT 0 AFTER idStatut2,
+    ADD COLUMN dureeMax INT NOT NULL DEFAULT 9999 AFTER dureeMin;
+
+-- On supprime l'ancienne colonne duree (renommée en dureeMax ci-dessus)
+-- Si vous préférez garder duree comme alias, commentez la ligne suivante :
+ALTER TABLE Parametre DROP COLUMN duree;
+
 CREATE TABLE DevisDetail (
     id INT PRIMARY KEY AUTO_INCREMENT,
     libelle VARCHAR(255),

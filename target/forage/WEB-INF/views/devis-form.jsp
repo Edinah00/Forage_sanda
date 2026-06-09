@@ -139,6 +139,7 @@
         </c:forEach>
     </tbody>
 </table>
+
 <script>
     let detailIndex = ${devis.details.size()};
 

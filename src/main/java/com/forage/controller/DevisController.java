@@ -125,6 +125,7 @@ public ResponseEntity<Map<String, Object>> demandeInfo(@RequestParam("reference"
         if (devis.getCreatedAt() == null) {
             devis.setCreatedAt(LocalDateTime.now());
         }
+        
 
         devisService.saveDevisWithStatus(devis);
         return "redirect:/devis/nouveau";
